@@ -1,0 +1,32 @@
+[project]
+name = "myproject"
+version = "0.1.0"
+description = "My coursework project"
+readme = "README.md"
+requires-python = ">=3.12"
+
+dependencies = [
+  "matplotlib",
+  "numpy",
+  "pandas",
+  "mlxtend",
+  "plotly>=5.24.0",
+  "nbformat",
+  "black",
+  "pytest",
+  "ipykernel",
+  "jupyter>=1.0",
+  "seaborn>=0.13.2",
+  "requests>=2.32",
+  "scikit-learn>=1.4",
+  "torch",
+  "torchmetrics",
+  "pyeclat>=1.0.2",
+  "missingno>=0.5.2",
+  "apyori>=1.1.2",
+  "kaleido==0.2.1",
+  "pillow>=10.0",
+  "rawpy>=0.23",
+  "projection-pursuit>=1.1",
+  "hdbscan>=0.8.41",
+]

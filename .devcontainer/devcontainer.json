@@ -1,0 +1,38 @@
+{
+  "name": "Python Dev (uv; home venv; no auto-installs)",
+  "build": { "dockerfile": "Dockerfile", "context": "." },
+
+  "remoteUser": "vscode",
+  "containerUser": "vscode",
+  "overrideCommand": true,
+
+  "updateContentCommand": "bash -lc '.devcontainer/setup.sh'",
+
+  // Fix cache/venv ownership each start; no Jupyter autostart.
+  "postStartCommand": "bash -lc 'sudo mkdir -p /home/vscode/.cache/{pip,uv,Microsoft} && sudo chown -R vscode:vscode /home/vscode/.cache && [ -d /home/vscode/.venv ] && sudo chown -R vscode:vscode /home/vscode/.venv || true'",
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "ms-python.debugpy",
+        "charliermarsh.ruff"
+      ],
+      "settings": {
+        "python.defaultInterpreterPath": "/home/vscode/.venv/bin/python",
+        "python.terminal.activateEnvironment": true,
+        "python.analysis.extraPaths": ["${workspaceFolder}/src"]
+      }
+    }
+  },
+
+  "containerEnv": {
+    "PYTHONPATH": "${containerWorkspaceFolder}/src",
+    "UV_PROJECT_ENVIRONMENT": "/home/vscode/.venv"
+  },
+
+  "mounts": [
+    "source=pip_cache,target=/home/vscode/.cache/pip,type=volume",
+    "source=uv_cache,target=/home/vscode/.cache/uv,type=volume"
+  ]
+}
