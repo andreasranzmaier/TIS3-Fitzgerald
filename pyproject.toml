@@ -1,32 +1,74 @@
+[build-system]
+requires = ["hatchling>=1.24"]
+build-backend = "hatchling.build"
+
 [project]
-name = "myproject"
+name = "timeseries-lab"
 version = "0.1.0"
-description = "My coursework project"
+description = "Time series analysis with Nixtla + baselines, statistical, ML, and neural forecasting."
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Your Name" }]
 
 dependencies = [
-  "matplotlib",
+  # Core
   "numpy",
   "pandas",
-  "mlxtend",
-  "plotly>=5.24.0",
-  "nbformat",
-  "black",
-  "pytest",
+  "polars",
+  "scipy",
+
+  # Plotting / EDA
+  "matplotlib",
+  "missingno",
+  "plotly",
+
+  # Diagnostics: ACF/PACF, STL decomposition, residual tests
+  "statsmodels",
+
+  # Nixtla ecosystem (baseline + statistical + neural + ML)
+  "statsforecast",
+  "neuralforecast",
+  "mlforecast",
+
+  # ML backends for MLForecast
+  "scikit-learn",
+  "lightgbm",
+  "xgboost",
+
+  # ARIMA / Auto-ARIMA (classic auto_arima API)
+  "pmdarima",
+
+  # Notebook runtime
+  "jupyterlab",
   "ipykernel",
-  "jupyter>=1.0",
-  "seaborn>=0.13.2",
-  "requests>=2.32",
-  "scikit-learn>=1.4",
-  "torch",
-  "torchmetrics",
-  "pyeclat>=1.0.2",
-  "missingno>=0.5.2",
-  "apyori>=1.1.2",
-  "kaleido==0.2.1",
-  "pillow>=10.0",
-  "rawpy>=0.23",
-  "projection-pursuit>=1.1",
-  "hdbscan>=0.8.41",
+
+  # Util
+  "tqdm",
+  "joblib",
+
+  # Dev / QA (installed by default to keep uv install consistent)
+  "pytest",
+  "ruff",
+  "mypy"
 ]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.mypy]
+python_version = "3.10"
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+# Optional: uv-specific settings (safe to omit)
+[tool.uv]
+package = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/timeseries_lab"]
