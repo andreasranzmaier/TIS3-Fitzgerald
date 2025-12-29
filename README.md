@@ -14,3 +14,7 @@ Source data lives in `data/Kaffee_Tee_Mate_und_Gewuerze_2021-2025.csv` and conta
 ## Tooling
 
 The project leans on numpy/pandas for manipulation, polars for fast tabular work, and Nixtla's `statsforecast`, `mlforecast`, and `neuralforecast` for modeling.
+
+## Dokumentation
+
+This project is documented in the `Docu.md`file.
