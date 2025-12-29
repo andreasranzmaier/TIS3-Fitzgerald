@@ -75,14 +75,63 @@ This means that a value originally observed in, for example, **2007** is adjuste
 Joa 
 
 ## Predictions
+In this section, we generate and evaluate forecasts for a single time series, focusing on monthly import values (in EUR). The goal is to compare simple baseline models against more advanced statistical forecasting methods, evaluate their out-of-sample performance, and produce short-term forecasts beyond the last available observation.
+
+The forecasting pipeline follows a consistent train–validation–test setup and applies the same evaluation metrics across all models to ensure comparability.
 
 ### Baseline
+Baseline models are used as simple reference points. They are computationally cheap, easy to interpret, and provide a lower bound for forecasting performance. If more complex models cannot clearly outperform these baselines, their added complexity is usually not justified.
+
+The following baseline methods were implemented:
+
+- **Naive**
+    - Assumes that future values remain equal to the last observed value.
+
+- **Seasonal Naive**
+    - Repeats the value from the same month in the previous year, assuming strong seasonality.
+
+- **Historic Average**
+    - Computes the average of the most recent seasonal cycle and uses this average to forecast future periods.
+
+Each baseline model is trained on the historical data and evaluated on both a validation split and a test split, using time-based splits to avoid data leakage.
 
 ### Statistical
+In addition to baseline approaches, we apply more advanced statistical time series models using the statsforecast framework. These models are able to capture trends, seasonality, and autocorrelation structures in the data more explicitly.
 
+The statistical models used are:
+- **Random Walk with Drift**   
+    - Extends the naive approach by adding a constant drift term estimated from historical data.
+
+- **ARIMA**
+    - A classical autoregressive integrated moving average model with fixed parameters.
+
+- **Auto-ARIMA**
+    - Automatically selects the best ARIMA configuration based on information criteria, reducing manual tuning.
+
+The data is converted into the required (unique_id, ds, y) format.
+Models are then trained first on the training set and then on the combined training + validation set.
+
+Forecasts are generated for both the validation horizon, the test horizon and the prediction for the future.
 ### Maschine Learning
 
 ### Neural
+
+### Evaluation and Forecast Generation
+
+Model performance is evaluated using multiple metrics:
+
+- MAE (Mean Absolute Error)
+- RMSE (Root Mean Squared Error)
+- MAPE (Mean Absolute Percentage Error)
+- R²
+- OPE (Overall Percentage Error)
+
+These metrics are computed separately for the validation and test splits, allowing us to assess both model selection and generalization performance.
+
+After evaluation, each model is retrained on the full available dataset and used to generate future forecasts for the next four months beyond the last observed date. These forecasts are visualized together with historical data (from 2020 onward) to highlight recent dynamics and model behavior.
+
+### Output
+All evaluations ar stored in a structured results table for further analysis, seperateed based on the family. 
 
 ## Analysis
 
