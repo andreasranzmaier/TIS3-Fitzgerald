@@ -150,3 +150,152 @@ def run_statsforecast_model(
     fc = sf.predict(h=h)
     value_cols = [c for c in fc.columns if c not in ("unique_id", "ds")]
     return fc.set_index("ds")[value_cols[0]]
+
+
+def run_mlforecast_model(
+    df_uid_ds_y: pd.DataFrame,
+    h: int,
+    method: str,
+    season_length: int,
+    *,
+    freq: str = "MS",
+    params: dict | None = None,
+) -> pd.Series:
+    """Run an MLForecast model (leakage-safe if df is already appropriately truncated).
+
+    Supported methods: 'linreg', 'ridge', 'rf', 'gbr'
+    """
+    from mlforecast import MLForecast
+    from mlforecast.lag_transforms import ExpandingMean
+
+    from sklearn.ensemble import GradientBoostingRegressor, RandomForestRegressor
+    from sklearn.linear_model import LinearRegression, Ridge
+
+    m = method.lower().strip()
+    params = params or {}
+
+    if m == "linreg":
+        model = LinearRegression(**params)
+    elif m == "ridge":
+        model = Ridge(**params)
+    elif m == "rf":
+        model = RandomForestRegressor(random_state=42, n_jobs=-1, **params)
+    elif m == "gbr":
+        model = GradientBoostingRegressor(random_state=42, **params)
+    else:
+        raise ValueError(f"Unsupported ML method '{method}'.")
+
+    # Minimal, broadly useful features. Keep deterministic to aid tuning.
+    lags = sorted({1, 2, 3, 6, season_length})
+    lag_transforms = {1: [ExpandingMean()]}
+    date_features = ["month"]
+
+    fcst = MLForecast(
+        models={m: model},
+        freq=freq,
+        lags=lags,
+        lag_transforms=lag_transforms,
+        date_features=date_features,
+    )
+    fcst.fit(df_uid_ds_y, id_col="unique_id", time_col="ds", target_col="y")
+    preds = fcst.predict(h=h)
+    return preds.set_index("ds")[m]
+
+
+def run_neuralforecast_model(
+    df_uid_ds_y: pd.DataFrame,
+    h: int,
+    method: str,
+    season_length: int,
+    *,
+    freq: str = "MS",
+    params: dict | None = None,
+) -> pd.Series:
+    """Run a NeuralForecast model.
+
+    Supported methods: 'rnn', 'nbeats', 'nhits', 'mlp'
+    """
+    from neuralforecast import NeuralForecast
+    from neuralforecast.models import MLP, NBEATS, NHITS, RNN
+
+    try:
+        from neuralforecast.losses.pytorch import MSE
+        loss = MSE()
+    except Exception:  # older versions
+        loss = None
+
+    m = method.lower().strip()
+    params = params or {}
+    input_size = int(params.pop("input_size", season_length * 2))
+    max_steps = int(params.pop("max_steps", 300))
+    learning_rate = float(params.pop("learning_rate", 1e-3))
+
+    common = dict(
+        h=h,
+        input_size=input_size,
+        max_steps=max_steps,
+        learning_rate=learning_rate,
+        scaler_type=params.pop("scaler_type", "robust"),
+    )
+    if loss is not None:
+        common["loss"] = loss
+
+    if m == "rnn":
+        model = RNN(**common, **params)
+    elif m == "nbeats":
+        model = NBEATS(**common, **params)
+    elif m == "nhits":
+        model = NHITS(**common, **params)
+    elif m == "mlp":
+        model = MLP(**common, **params)
+    else:
+        raise ValueError(f"Unsupported neural method '{method}'.")
+
+    nf = NeuralForecast(models=[model], freq=freq)
+    nf.fit(df_uid_ds_y)
+    fc = nf.predict()
+    value_cols = [c for c in fc.columns if c not in ("unique_id", "ds")]
+    return fc.set_index("ds")[value_cols[0]]
+
+
+def run_any_model(
+    df_uid_ds_y: pd.DataFrame,
+    h: int,
+    method: str,
+    season_length: int,
+    *,
+    freq: str = "MS",
+    arima_order: tuple[int, int, int] = (1, 1, 1),
+    params: dict | None = None,
+) -> pd.Series:
+    """Dispatch helper for any method in FAMILY_MAP."""
+    m = method.lower().strip()
+    family = FAMILY_MAP.get(m)
+    if family in ("baseline", "statistical"):
+        return run_statsforecast_model(
+            df_uid_ds_y,
+            h=h,
+            method=m,
+            season_length=season_length,
+            arima_order=arima_order,
+            freq=freq,
+        )
+    if family == "ml":
+        return run_mlforecast_model(
+            df_uid_ds_y,
+            h=h,
+            method=m,
+            season_length=season_length,
+            freq=freq,
+            params=params,
+        )
+    if family == "neural":
+        return run_neuralforecast_model(
+            df_uid_ds_y,
+            h=h,
+            method=m,
+            season_length=season_length,
+            freq=freq,
+            params=params,
+        )
+    raise ValueError(f"Unknown method '{method}' (family={family}).")
