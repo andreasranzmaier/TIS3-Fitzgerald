@@ -55,11 +55,10 @@ Before fitting statistical forecasting models, we performed a set of **time seri
 
 The selected variable was converted into a clean monthly time series by:
 
-* keeping only the date and value columns,
-* removing missing values,
-* converting the date column into a proper datetime format,
-* sorting the data chronologically,
-* and setting the date as the time index.
+* keeping only the date and value columns
+* converting the date column into a proper datetime format
+* sorting the data chronologically
+* and setting the date as the time index
 
 For the diagnostics, we used **import quantities in kilograms (`import_qty_kg`)** as the default series, since it represents real *physical* demand and is not directly affected by inflation.
 
@@ -73,12 +72,10 @@ To assess stationarity, we applied two complementary statistical tests:
 * **KPSS test**
   *Null hypothesis (H₀):* The series is stationary around a constant level.
 
-The results are summarized below:
+	series	test	H0	stat	p_value	lags	nobs	crit_1%	crit_5%	crit_10%
+0	import_value_eur_real_2025	ADF	unit root (non-stationary)	-2.175337	0.215318	14	210	-3.461879	-2.875404	-2.574159
+1	import_value_eur_real_2025	KPSS	stationary (level)	1.106780	0.010000	8	225	0.739000	0.463000	0.347000
 
-| Test | Null Hypothesis            | Result                  | Interpretation                             |
-| ---- | -------------------------- | ----------------------- | ------------------------------------------ |
-| ADF  | Unit root (non-stationary) | **Rejected (p < 0.01)** | No unit root → series is not a random walk |
-| KPSS | Level-stationary           | **Rejected (p ≈ 0.04)** | Mean is not constant over time             |
 
 This combination of results indicates that the series is **not a pure random walk**, but also **not strictly level-stationary**.
 
@@ -104,6 +101,9 @@ The decomposition separates the series into:
 * **Remainder (residuals)**
   Contains short-term fluctuations and noise after removing trend and seasonality.
 
+Shows that the trend is going up in the recent years.
+It looks to be quite seasonal.
+
 ### Interpretation and Implications for Modeling
 
 The diagnostics suggest that:
@@ -121,19 +121,32 @@ These findings informed our model selection and parameter choices in the forecas
 
 ### Autocorrelation
 
-An autocorrelation scatter plot shows how a time series relates to itself when shifted by *k* time steps. The lag variable represents how far back in time the comparison is made.
+Autocorrelation measures how much a time series is correlated with itself at different lags (*k*). This helps identify patterns such as persistence, seasonality, and the memory of the series, which is essential for choosing appropriate forecasting models.
 
 ![](img/autocorr_scatter.png)
 
-The plot shows that **lag 1** has a higher correlation (≈ 0.59) compared to **lag 12** (≈ 0.35). Neither scatter plot shows a clear linear relationship; instead, the points form an elliptical cloud. This is typical for seasonal or cyclic behavior, which is consistent with our previous findings.
+The scatter plot shows that **lag 1** has a slightly higher correlation (≈ 0.59) compared to **lag 12** (≈ 0.55). This indicates that the series has **short-term persistence** (values tend to be similar to the previous month) and some **yearly seasonality** (lag 12 represents 12 months).
 
 ![](img/ACF_PACF-all.png)
 
 ![](img/ACF_PACF-120.png)
 
-The ACF and PACF plots display the same underlying data, with the second figure zoomed in to focus on the most informative lags. The remaining lags provide little additional information for explaining short-term dynamics, especially for the most recent months.
+The **ACF (Autocorrelation Function)** and **PACF (Partial Autocorrelation Function)** plots further illustrate these relationships:
 
----
+* **ACF:** Shows correlations at multiple lags. The gradual decay and peaks at seasonal lags (12, 24…) suggest **seasonal patterns** and some **trend components**.
+* **PACF:** Highlights the correlation at a given lag after removing the influence of intervening lags. Significant spikes at lag 1 and smaller spikes at seasonal lags indicate that **recent months influence the current month more strongly**, while seasonal effects are also present but weaker.
+
+The **high variance in these plots** can arise due to:
+
+1. **Noise in monthly imports** – short-term fluctuations in import quantities cause variability.
+2. **Structural breaks or irregular events** – e.g., 2020 had extreme months likely due to COVID-19-related disruptions.
+3. **Mixed trend and seasonality** – the series is not strictly stationary, so autocorrelations fluctuate over time.
+
+**Implications for modeling:**
+
+* Strong lag-1 autocorrelation supports the use of **ARIMA or ML models with lag features**.
+* Seasonal spikes suggest **including yearly seasonal components** (e.g., seasonal naive, seasonal ARIMA).
+* The variance indicates that no single lag fully explains the series, which justifies using models capable of capturing **both trend and seasonality**, and possibly **nonlinear effects**.
 
 ### Visualisation
 
@@ -151,72 +164,216 @@ To obtain inflation-adjusted values, we constructed a **CPI-like index** by comp
 
 This means that a value observed in, for example, **2007** is adjusted to reflect the same purchasing power as in **2025**. As a result, all inflation-adjusted values are directly comparable across time and expressed in **2025 euros**, which explains why the corresponding columns are suffixed with `_real_2025`.
 
+This is the data we will continue working with for this project
+
 ### Preprocessing thoughts
 
 From the Preprocessing alone ARIMA or something like this seems to be a good choice for forecasting - of course our choice will only really fall when we have tested and compared all the different models and model types to give out a good, in our opinion, prediction for the followign months. 
 
 ## Predictions
-In this section, we generate and evaluate forecasts for a single time series, focusing on monthly import values (in EUR). The goal is to compare models against each other from different families of models (baseline, statistical, maschine learning and neural), evaluate their out-of-sample performance, and produce short-term forecasts beyond the last available observation.
 
-The forecasting pipeline follows a consistent train–validation–test setup and applies the same evaluation metrics across all models to ensure comparability.
+In this section, forecasts are generated and evaluated for a single monthly time series of import values (in EUR, inflation-adjusted to 2025 price levels). The objective is to compare forecasting models from different model families. These are: baseline, statistical, machine learning, and neural. While using a unified evaluation framework, and to produce short-term forecasts beyond the last observed date (four months to be specific to include **January 2026**).
 
-### Baseline
-Baseline models are used as simple reference points. They are computationally cheap, easy to interpret, and provide a lower bound for forecasting performance. If more complex models cannot clearly outperform these baselines, their added complexity is usually not justified.
+All models follow the same **time-based train–validation–test split**, defined as:
 
-The following baseline methods were implemented:
+* **Training:** October 2007 – September 2021
+* **Validation:** October 2021 – September 2023
+* **Test:** October 2023 – September 2025
 
-- **Naive**
-    - Assumes that future values remain equal to the last observed value.
+This setup ensures that no future information leaks into model training or tuning. Hyperparameters are selected **exclusively on the validation split**, after which the selected model configuration is refit on the combined training and validation data to generate the test and validation forecasts.
 
-- **Seasonal Naive**
-    - Repeats the value from the same month in the previous year, assuming strong seasonality.
+### Baseline Models
 
-- **Historic Average**
-    - Computes the average of the most recent seasonal cycle and uses this average to forecast future periods.
+Baseline models serve as simple reference points. They are computationally inexpensive, easy to interpret, and provide a lower bound for forecasting performance. Which basically means that these are the easiest to make and most likely not the most accurate or good. (Can obviously differ from situation to situation.) If more complex models fail to clearly outperform these baselines, their added complexity is typically not justified.
 
-Each baseline model is trained on the historical data and evaluated on both a validation split and a test split, using time-based splits to avoid data leakage.
+The following baseline methods are implemented:
 
-### Statistical
-In addition to baseline approaches, we apply more advanced statistical time series models using the statsforecast framework. These models are able to capture trends, seasonality, and autocorrelation structures in the data more explicitly.
+* **Naive**
+  Assumes that all future values are equal to the most recent observed value.
 
-The statistical models used are:
-- **Random Walk with Drift**   
-    - Extends the naive approach by adding a constant drift term estimated from historical data.
+* **Seasonal Naive**
+  Repeats the value from the same month in the previous year, capturing basic annual seasonality. 
 
-- **ARIMA**
-    - A classical autoregressive integrated moving average model with fixed parameters.
+* **Historic Average**
+  Computes the average of the most recent seasonal cycle and uses this constant value for all forecast horizons.
 
-- **Auto-ARIMA**
-    - Automatically selects the best ARIMA configuration based on information criteria, reducing manual tuning.
+Baseline models are trained on the historical data and evaluated on both validation and test splits using the same time-based partitions as all other models.
 
-The data is converted into the required (unique_id, ds, y) format.
-Models are then trained first on the training set and then on the combined training + validation set.
+### Statistical Models
 
-Forecasts are generated for both the validation horizon, the test horizon and the prediction for the future.
-### Maschine Learning
+In addition to baseline approaches, classical statistical time-series models are applied using the *StatsForecast* framework. These models explicitly model trend, seasonality, and autocorrelation in the data.
 
-### Neural
+The statistical models considered are:
+
+* **Random Walk with Drift**
+  Extends the naive model by estimating a constant drift term from historical observations.
+
+* **ARIMA**
+  A classical autoregressive integrated moving average model. Several ARIMA orders are evaluated on the validation split, and the configuration with the lowest validation RMSE is selected.
+
+* **Auto-ARIMA**
+  Automatically selects the optimal ARIMA specification based on information criteria, including seasonal components.
+
+Each statistical model is first fitted on the training data to produce validation forecasts. After model selection, the chosen configuration is refitted on the combined training and validation data to generate test and future forecasts. Refitting is done to reduce bias in forecasts.
+
+### Machine Learning Models
+
+Machine learning models are included to capture potentially nonlinear relationships and interactions that may not be well represented by more classical statistical approaches.
+
+The following machine learning models are implemented using the *MLForecast* framework:
+
+Here’s a concise one-sentence explanation for each, in the same style as your baseline and statistical models:
+
+* **Linear Regression**
+  Models the target as a linear combination of lagged values and calendar features, capturing simple linear relationships over time.
+
+* **Ridge Regression**
+  Similar to linear regression but adds L2 regularization to prevent overfitting, especially useful when many correlated lagged features are used.
+
+* **Random Forest**
+  An ensemble of decision trees that averages predictions to capture nonlinear relationships and interactions in lagged and calendar features.
+
+* **Gradient Boosting Regressor**
+  Sequentially fits trees to correct errors of previous trees, producing a powerful nonlinear model that can adapt to complex temporal patterns.
+
+All machine learning models use a fixed and deterministic feature set consisting of lagged values, expanding means, and calendar features (month). Hyperparameters are tuned via grid search on the validation split only. Once the best configuration is identified, each model is refitted on the combined training and validation data before producing test and future forecasts. Refitting is done to reduce bias in forecasts.
+
+### Neural Models
+
+Neural forecasting models are applied to assess whether deep learning approaches can capture more complex temporal dynamics in the data.
+
+The neural architectures considered include:
+
+* **Recurrent Neural Networks (RNN)**
+  Neural networks with recurrent connections that can capture temporal dependencies and sequential patterns in time series data.
+
+* **Multilayer Perceptron (MLP)**
+  A feedforward neural network with hidden layers that learns nonlinear mappings from lagged values and seasonal inputs to future targets.
+
+* **N-BEATS**
+  A deep learning architecture specifically designed for time series forecasting, modeling trend and seasonality using interpretable block structures.
+
+* **NHITS**
+  A neural forecasting model that extends N-BEATS with hierarchical interpolation and improved handling of seasonality and trend components.
+
+All neural models are trained using a sliding input window proportional to the seasonal length. 
+(We are aware that we should also do a Hyperparameter search here - however due to mostly computational restraints we decided against this because we wanted to test a variety of Neural Models and not be stuck on one for multiple hours.)
+The best-performing configuration is then refit on the full historical data to generate test and future forecasts. Refitting is done to reduce bias in forecasts.
 
 ### Evaluation and Forecast Generation
 
-Model performance is evaluated using multiple metrics:
+Model performance is evaluated using multiple complementary metrics:
 
-- MAE (Mean Absolute Error)
-- RMSE (Root Mean Squared Error)
-- MAPE (Mean Absolute Percentage Error)
-- R²
-- OPE (Overall Percentage Error)
+* **MAE** (Mean Absolute Error)
+* **RMSE** (Root Mean Squared Error)
+* **MAPE** (Mean Absolute Percentage Error)
+* **R²**
+* **OPE** (Overall Percentage Error)
 
-These metrics are computed separately for the validation and test splits, allowing us to assess both model selection and generalization performance.
+All metrics are computed separately for the validation and test splits. Validation metrics are used exclusively for model selection and hyperparameter tuning, while test metrics provide an unbiased estimate of generalization performance.
 
-After evaluation, each model is retrained on the full available dataset and used to generate future forecasts for the next four months beyond the last observed date. These forecasts are visualized together with historical data (from 2020 onward) to highlight recent dynamics and model behavior.
+After evaluation, each model is retrained on the **entire available dataset** and used to generate **12-month-ahead forecasts** beyond the last observed date. These future forecasts are visualized together with recent historical data (from 2020 onward) to highlight short-term dynamics and differences between model families.
 
 ### Output
-All evaluations ar stored in a structured results table for further analysis, seperateed based on the family. 
+We got all of the predictions (both test and val & the predicted for the future months) in .csv files for later use. (Visualisation etc.)
+
+The top 3 models are visualised in the forecast file itself but that is only based on the RMSE and doesn't take the other values into consideration. 
 
 ## Analysis
 
-## Closing Thoughts
+The table below summarizes the performance of all forecasting models on the dataset.
+
+* **Family:** Categorizes models into baseline, statistical, ML, or neural.
+* **val_rmse_for_tuning:** Validation RMSE used for hyperparameter tuning.
+* **best_params / best_arima_order:** Best model parameters found via tuning (if applicable).
+
+| Model            | Family      | Split | MAE   | RMSE  | MAPE  | R²     | OPE   | val_rmse_for_tuning | best_params            | best_arima_order |
+| ---------------- | ----------- | ----- | ----- | ----- | ----- | ------ | ----- | ------------------- | ---------------------- | ---------------- |
+| naive            | baseline    | Val   | 4.25M | 5.76M | 0.078 | -0.000 | -0.17 | 5.76M               | None                   | (1,1,1)          |
+| naive            | baseline    | Test  | 3.54M | 4.23M | 0.063 | -0.004 | -0.48 | 5.76M               | None                   | (1,1,1)          |
+| seasonal_naive   | baseline    | Val   | 4.53M | 5.79M | 0.078 | -0.014 | -8.11 | 5.79M               | None                   | (1,1,1)          |
+| seasonal_naive   | baseline    | Test  | 3.15M | 4.16M | 0.059 | 0.029  | 0.75  | 5.79M               | None                   | (1,1,1)          |
+| historic_average | baseline    | Val   | 5.97M | 7.32M | 0.103 | -0.620 | -8.11 | 7.32M               | None                   | (1,1,1)          |
+| historic_average | baseline    | Test  | 3.65M | 4.24M | 0.066 | -0.009 | 0.75  | 7.32M               | None                   | (1,1,1)          |
+| rw_drift         | statistical | Val   | 4.23M | 5.77M | 0.078 | -0.004 | 0.10  | 5.77M               | None                   | (1,1,1)          |
+| rw_drift         | statistical | Test  | 3.56M | 4.24M | 0.064 | -0.008 | -0.32 | 5.77M               | None                   | (1,1,1)          |
+| arima            | statistical | Val   | 5.60M | 6.89M | 0.097 | -0.435 | -6.79 | 6.89M               | None                   | (0,1,1)          |
+| arima            | statistical | Test  | 3.41M | 4.36M | 0.060 | -0.064 | -1.95 | 6.89M               | None                   | (0,1,1)          |
+| auto_arima       | statistical | Val   | 4.67M | 5.99M | 0.079 | -0.084 | -6.79 | 5.99M               | None                   | (1,1,1)          |
+| auto_arima       | statistical | Test  | 2.89M | 3.78M | 0.053 | 0.200  | -1.13 | 5.99M               | None                   | (1,1,1)          |
+| linreg           | ml          | Val   | 5.47M | 6.12M | 0.095 | -0.130 | -7.85 | 6.12M               | {}                     | (1,1,1)          |
+| linreg           | ml          | Test  | 3.17M | 3.93M | 0.058 | 0.135  | -1.66 | 6.12M               | {}                     | (1,1,1)          |
+| ridge            | ml          | Val   | 5.47M | 6.12M | 0.095 | -0.130 | -7.85 | 6.12M               | {'alpha':0.1}          | (1,1,1)          |
+| ridge            | ml          | Test  | 3.17M | 3.93M | 0.058 | 0.135  | -1.66 | 6.12M               | {'alpha':0.1}          | (1,1,1)          |
+| rf               | ml          | Val   | 3.66M | 4.87M | 0.062 | 0.285  | -5.70 | 4.87M               | {'n_estimators':300... | (1,1,1)          |
+| rf               | ml          | Test  | 2.70M | 3.85M | 0.050 | 0.169  | -0.43 | 4.87M               | {'n_estimators':300... | (1,1,1)          |
+| gbr              | ml          | Val   | 3.56M | 4.50M | 0.061 | 0.390  | -6.38 | 4.50M               | {'n_estimators':300... | (1,1,1)          |
+| gbr              | ml          | Test  | 3.59M | 4.24M | 0.065 | -0.009 | -5.05 | 4.50M               | {'n_estimators':300... | (1,1,1)          |
+| rnn              | neural      | Val   | 4.87M | 6.44M | 0.088 | -0.254 | -6.26 | 6.44M               | {}                     | (1,1,1)          |
+| rnn              | neural      | Test  | 5.16M | 6.63M | 0.097 | -1.470 | 1.52  | 6.44M               | {}                     | (1,1,1)          |
+| nbeats           | neural      | Val   | 5.32M | 6.00M | 0.094 | -0.088 | -2.47 | 6.00M               | {}                     | (1,1,1)          |
+| nbeats           | neural      | Test  | 4.29M | 4.66M | 0.079 | -0.216 | -3.77 | 6.00M               | {}                     | (1,1,1)          |
+| nhits            | neural      | Val   | 4.43M | 5.53M | 0.077 | 0.075  | -2.97 | 5.53M               | {}                     | (1,1,1)          |
+| nhits            | neural      | Test  | 4.70M | 5.25M | 0.087 | -0.545 | -3.84 | 5.53M               | {}                     | (1,1,1)          |
+| mlp              | neural      | Val   | 4.57M | 5.84M | 0.079 | -0.030 | -3.26 | 5.84M               | {}                     | (1,1,1)          |
+| mlp              | neural      | Test  | 4.14M | 4.77M | 0.077 | -0.275 | -2.80 | 5.84M               | {}                     | (1,1,1)          |
+
+
+### Best 3 Models
+
+#### **Auto ARIMA**
+
+* **Family:** Statistical
+* **Split Performance:** Val RMSE ≈ 5.99M | Test RMSE ≈ 3.78M
+* **Short Summary:** Auto ARIMA automatically selects the optimal ARIMA orders to model trend and seasonality, providing strong accuracy on both validation and test sets.
+* **Explaination:** Performs particularly well on the test split, reflecting its ability to adapt to underlying time series patterns.
+
+![Auto ARIMA](img/auto_arima.png)
+
+---
+
+#### **Random Forest (RF)**
+
+* **Family:** ML
+* **Split Performance:** Val RMSE ≈ 4.87M | Test RMSE ≈ 3.85M
+* **Short Summary:** Ensemble of decision trees capturing nonlinear dependencies and interactions among lagged and calendar features, yielding solid predictive performance.
+* **Explaination:** Shows robust performance across both splits, with low MAE and MAPE, making it one of the most consistent ML models.
+
+![RF](img/rf.png)
+
+---
+
+#### **Seasonal Naive**
+
+* **Family:** Baseline
+* **Split Performance:** Val RMSE ≈ 5.79M | Test RMSE ≈ 4.16M
+* **Short Summary:** Repeats the last observed season as the forecast, surprisingly competitive despite its simplicity.
+* **Explaination:** Especially strong on the test set, highlighting that for highly seasonal data, even simple baselines can be surprisingly effective.
+
+![Seasonal Naive](img/seasonal_naive.png)
+
+## Closing Thoughts and Final Prediction Values
+
+Exploring this dataset was quite interesting and gave a deeper insight into how much coffee (and tea, mate, or spices) we as Austrians import. **Spoiler alert:** it’s quite a lot every single month!
+
+What’s particularly notable is that both the volume and the **monetary value (inflation-adjusted)** didn’t change drastically over the years. Of course, there are spikes and low points, 2020 stands out with some extreme months for reasons unknown ;) but overall, the series is **relatively stationary**.
+
+Based on the three best-performing models **Auto ARIMA**, **Random Forest (RF)**, and **Seasonal Naive** the predicted import values for the next four months are as follows:
+
+| Date       | Auto ARIMA (Statistical) | RF (ML)    | Seasonal Naive (Baseline) |
+| ---------- | ------------------------ | ---------- | ------------------------- |
+| 2025-10-01 | 70,232,511               | 61,960,099 | 65,258,428                |
+| 2025-11-01 | 66,498,229               | 62,389,058 | 56,522,674                |
+| 2025-12-01 | 63,869,135               | 62,653,641 | 55,644,154                |
+| 2026-01-01 | 65,225,934               | 60,901,160 | 58,416,142                |
+
+**Observations:**
+
+* Auto ARIMA predicts a **slightly decreasing trend**, consistent with the past few years’ seasonal dips.
+* Random Forest forecasts are **more stable**, reflecting its ensemble approach that smooths out extremes.
+* Seasonal Naive captures the **typical seasonal patterns**, which explains some of the larger swings month-to-month.
+
+In conclusion, all three models provide complementary perspectives: **Auto ARIMA** for trend-adaptive forecasts, **RF** for robust averages, and **Seasonal Naive** for seasonal intuition. Together, they give a solid picture of expected Austrian imports for the upcoming months.
 
 ## Useful Links
  https://www.statistik.at/fileadmin/shared/QM/Standarddokumentationen/U/std_u_itgs.pdf
