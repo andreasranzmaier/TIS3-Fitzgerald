@@ -72,10 +72,10 @@ To assess stationarity, we applied two complementary statistical tests:
 * **KPSS test**
   *Null hypothesis (H₀):* The series is stationary around a constant level.
 
-	series	test	H0	stat	p_value	lags	nobs	crit_1%	crit_5%	crit_10%
-0	import_value_eur_real_2025	ADF	unit root (non-stationary)	-2.175337	0.215318	14	210	-3.461879	-2.875404	-2.574159
-1	import_value_eur_real_2025	KPSS	stationary (level)	1.106780	0.010000	8	225	0.739000	0.463000	0.347000
-
+| Series                    | Test | H₀                         | Stat      | p-value  | Lags | nobs | Crit 1%   | Crit 5%   | Crit 10%  |
+|---------------------------|------|----------------------------|-----------|----------|------|------|-----------|-----------|-----------|
+| import_value_eur_real_2025 | ADF  | unit root (non-stationary) | -2.175337 | 0.215318 | 14   | 210  | -3.461879 | -2.875404 | -2.574159 |
+| import_value_eur_real_2025 | KPSS | stationary (level)         | 1.106780  | 0.010000 | 8    | 225  | 0.739000  | 0.463000  | 0.347000  |
 
 This combination of results indicates that the series is **not a pure random walk**, but also **not strictly level-stationary**.
 
