@@ -110,25 +110,34 @@ def plot_feature_bars(
 
     ax.set_xticks(x)
     ax.set_xticklabels(labels, rotation=20, ha="right")
-    ax.set_title(f"{label} — {date_str}: actual vs precomputed forecasts (top 3)")
+    ax.set_title(
+        f"{label} — {date_str}: actual vs precomputed forecasts (top 3)", pad=16
+    )
     ax.set_ylabel(label)
     ax.grid(axis="y", alpha=0.2)
 
+    # Keep proportions, but add a little headroom so labels don't hit the title.
+    ax.margins(y=0.08)
+
     # annotate values for quick read
     for xi, v in zip(x, values):
+        yoff = 6 if v >= 0 else -6
+        va = "bottom" if v >= 0 else "top"
         ax.annotate(
             f"{v:,.0f}",
             (float(xi), float(v)),
-            xytext=(0, 5),
+            xytext=(0, yoff),
             textcoords="offset points",
             ha="center",
-            va="bottom",
+            va=va,
             fontsize=8,
+            clip_on=False,
         )
 
-    fig.tight_layout()
+    # Keep axis scaling, but ensure the exported image includes annotation extents.
+    fig.tight_layout(pad=1.0)
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(out_path, dpi=150)
+    fig.savefig(out_path, dpi=150, bbox_inches="tight", pad_inches=0.5)
     plt.close(fig)
 
 
