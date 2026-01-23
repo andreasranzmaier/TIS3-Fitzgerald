@@ -10,9 +10,9 @@ from statsforecast.models import Naive, SeasonalNaive, RandomWalkWithDrift, ARIM
 
 # Fixed split train data
 SPLIT_YEARS = {
-    "train": (pd.Timestamp("2007-10-01"), pd.Timestamp("2021-09-01")),
-    "val":   (pd.Timestamp("2021-10-01"), pd.Timestamp("2023-09-01")),
-    "test":  (pd.Timestamp("2023-10-01"), pd.Timestamp("2025-09-01")),
+    "train": (pd.Timestamp("2007-10-01"), pd.Timestamp("2021-09-01")), # 14 years
+    "val":   (pd.Timestamp("2021-10-01"), pd.Timestamp("2023-09-01")), # 2 years
+    "test":  (pd.Timestamp("2023-10-01"), pd.Timestamp("2025-09-01")), # 2 years
 }
 
 # Families for coloring & classification
